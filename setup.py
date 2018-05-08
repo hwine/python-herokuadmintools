@@ -25,7 +25,7 @@ def read(*names, **kwargs):
 setup(
     name='herokuadmintools',
     version='0.1.0',
-    license='Apache Software License 2.0',
+    license='MPL 2.0',
     description='Package to support both cli & pytest-services usage',
     long_description='%s\n%s' % (
         re.compile('^.. start-badges.*^.. end-badges', re.M | re.S
@@ -45,7 +45,7 @@ setup(
         # http://pypi.python.org/pypi?%3Aaction=list_classifiers
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: Apache Software License',
+        'License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)',
         'Operating System :: Unix',
         'Operating System :: POSIX',
         'Operating System :: Microsoft :: Windows',

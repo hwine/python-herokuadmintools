@@ -57,7 +57,7 @@ Overview
 
 Package to support both cli & pytest-services usage
 
-* Free software: Apache Software License 2.0
+* Free software: Mozilla Public License 2.0
 
 Installation
 ============
