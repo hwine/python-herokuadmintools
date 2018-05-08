@@ -1,26 +1,70 @@
 """
-Module that contains the command line app.
-
-Why does this file exist, and why not put this in __main__?
-
-  You might be tempted to import things from __main__ later, but that will cause
-  problems: the code will get executed twice:
-
-  - When you run `python -mherokuadmintools` python will execute
-    ``__main__.py`` as a script. That means there won't be any
-    ``herokuadmintools.__main__`` in ``sys.modules``.
-  - When you import __main__ it will get executed again (as a module) because
-    there's no ``herokuadmintools.__main__`` in ``sys.modules``.
-
-  Also see (1) from http://click.pocoo.org/5/setuptools/#setuptools-integration
+cli wrapper of Mozilla specific heroku administrative tasks
 """
 import argparse
+import logging
 
-parser = argparse.ArgumentParser(description='Command description.')
-parser.add_argument('names', metavar='NAME', nargs=argparse.ZERO_OR_MORE,
-                    help="A name of something.")
+from herokuadmintools import (
+    find_affected_apps,
+    find_users_missing_2fa,
+    generate_csv,
+    get_status_code,
+    ORG_NAME,
+    update_status_code,
+    verify_access,
+)
+
+
+# boilerplate
+logger = logging.getLogger(__name__)
+
+
+def output_results(users_missing_2fa, affected_apps):
+    if not users_missing_2fa:
+        print('All {} users have 2FA enabled :)'.format(ORG_NAME))
+        return
+
+    print('The following {} users do not have 2FA enabled!'.format(ORG_NAME))
+    for role, users in users_missing_2fa.items():
+        print('\n~ {} {}s:'.format(len(users), role))
+        for email in sorted(users):
+            print(email)
+
+    if affected_apps:
+        print('\n{} apps are affected:\n'.format(len(affected_apps)))
+        for app, emails in sorted(affected_apps.items()):
+            print('{} ({})'.format(app, ', '.join(sorted(emails))))
+
+
+def do_task(args):
+    verify_access()
+    users_missing_2fa = find_users_missing_2fa()
+    affected_apps = find_affected_apps(users_missing_2fa)
+
+    if args.csv:
+        generate_csv(users_missing_2fa, affected_apps)
+    else:
+        output_results(users_missing_2fa, affected_apps)
+
+    update_status_code(0 if not users_missing_2fa else 2)
+
+
+def parse_args(args=None):
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse
+                                     .RawTextHelpFormatter)
+    parser.add_argument('--debug', help="log at DEBUG level",
+                        action='store_true')
+    parser.add_argument('--csv', action='store_true',
+                        help='output as csv file')
+    args = parser.parse_args(args=args)
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+    return args
 
 
 def main(args=None):
-    args = parser.parse_args(args=args)
-    print(args.names)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+    args = parse_args(args)
+    do_task(args)
+    raise SystemExit(get_status_code())
