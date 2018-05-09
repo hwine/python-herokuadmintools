@@ -24,7 +24,7 @@ def read(*names, **kwargs):
 
 setup(
     name='herokuadmintools',
-    version='0.1.1',
+    version='0.1.2',
     license='MPL 2.0',
     description='Package to support both cli & pytest-services usage',
     long_description='%s\n%s' % (

@@ -26,7 +26,7 @@ project = 'HerokuAdminTools'
 year = '2018'
 author = 'Hal Wine'
 copyright = '{0}, {1}'.format(year, author)
-version = release = '0.1.1'
+version = release = '0.1.2'
 
 pygments_style = 'trac'
 templates_path = ['.']
