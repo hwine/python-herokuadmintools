@@ -1,5 +1,11 @@
 """
 cli wrapper of Mozilla specific heroku administrative tasks
+
+Exit Codes:
+    0 - everyone has 2FA enabled
+    1 - bad arguments, Heroku not queried
+    2 - one or more users without 2FA enabled
+    3 - Heroku query failure
 """
 import argparse
 import logging
@@ -9,7 +15,7 @@ from herokuadmintools import (
     find_users_missing_2fa,
     generate_csv,
     get_status_code,
-    ORG_NAME,
+    ORG_NAME_DEFAULT,
     update_status_code,
     verify_access,
 )
@@ -19,12 +25,12 @@ from herokuadmintools import (
 logger = logging.getLogger(__name__)
 
 
-def output_results(users_missing_2fa, affected_apps):
+def output_results(users_missing_2fa, affected_apps, org=ORG_NAME_DEFAULT):
     if not users_missing_2fa:
-        print('All {} users have 2FA enabled :)'.format(ORG_NAME))
+        print('All {} users have 2FA enabled :)'.format(org))
         return
 
-    print('The following {} users do not have 2FA enabled!'.format(ORG_NAME))
+    print('The following {} users do not have 2FA enabled!'.format(org))
     for role, users in users_missing_2fa.items():
         print('\n~ {} {}s:'.format(len(users), role))
         for email in sorted(users):
@@ -37,9 +43,10 @@ def output_results(users_missing_2fa, affected_apps):
 
 
 def do_task(args):
-    verify_access()
-    users_missing_2fa = find_users_missing_2fa()
-    affected_apps = find_affected_apps(users_missing_2fa)
+    org = args.organization
+    verify_access(org)
+    users_missing_2fa = find_users_missing_2fa(org)
+    affected_apps = find_affected_apps(users_missing_2fa, org)
 
     if args.csv:
         generate_csv(users_missing_2fa, affected_apps)
@@ -57,6 +64,8 @@ def parse_args(args=None):
                         action='store_true')
     parser.add_argument('--csv', action='store_true',
                         help='output as csv file')
+    parser.add_argument('--organization', help='Heroku Organization to query',
+                        default=ORG_NAME_DEFAULT)
     args = parser.parse_args(args=args)
     if args.debug:
         logger.setLevel(logging.DEBUG)

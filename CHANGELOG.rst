@@ -2,7 +2,11 @@
 Changelog
 =========
 
+0.1.1 (2018-05-08)
+------------------
+* Refactored as proper package
+
 0.1.0 (2018-05-04)
 ------------------
 
-* First release on PyPI.
+* Initial commit from skeleton

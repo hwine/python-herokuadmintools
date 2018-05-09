@@ -1,6 +1,5 @@
 __version__ = '0.1.1'
 
-# code to move to modules
 from collections import defaultdict
 import logging
 from functools import lru_cache
@@ -12,6 +11,17 @@ from requests.utils import get_netrc_auth
 # boilerplate
 logger = logging.getLogger(__name__)
 status_code = 0
+
+# Mozilla defaults
+ORG_NAME_DEFAULT = 'mozillacorporation'
+# https://devcenter.heroku.com/articles/platform-api-reference#organization-member
+ORG_USERS_URL_TEMPLATE = \
+    'https://api.heroku.com/organizations/{}/members'
+# https://devcenter.heroku.com/articles/platform-api-reference#clients
+REQUEST_HEADERS = {
+    'Accept': 'application/vnd.heroku+json; version=3',
+    'User-Agent': 'build-stats',
+}
 
 
 def get_status_code():
@@ -28,8 +38,12 @@ def update_status_code(new_code):
     status_code = max(status_code, new_code)
 
 
-def verify_access():
-    if not get_netrc_auth(ORG_USERS_URL):
+def get_org_member_url(org=ORG_NAME_DEFAULT):
+    return ORG_USERS_URL_TEMPLATE.format(org)
+
+
+def verify_access(org=ORG_NAME_DEFAULT):
+    if not get_netrc_auth(get_org_member_url(org)):
         logger.fatal('Heroku API credentials not found in `~/.netrc`'
                      'or `~/_netrc`.\n'
                      'Log in using the Heroku CLI to generate them.')
@@ -37,10 +51,10 @@ def verify_access():
         return
 
 
-def find_users_missing_2fa():
+def find_users_missing_2fa(org=ORG_NAME_DEFAULT):
     users_missing_2fa = {}
     try:
-        org_users = fetch_api_json(ORG_USERS_URL)
+        org_users = fetch_api_json(get_org_member_url(org))
         users_missing_2fa = defaultdict(set)
         for user in org_users:
             if not user['two_factor_authentication']:
@@ -51,11 +65,11 @@ def find_users_missing_2fa():
     return users_missing_2fa
 
 
-def find_affected_apps(users_missing_2fa):
+def find_affected_apps(users_missing_2fa, org=ORG_NAME_DEFAULT):
     affected_apps = defaultdict(set)
     for role, users in users_missing_2fa.items():
         for email in sorted(users):
-            for app in apps_accessible_by_user(email, role):
+            for app in apps_accessible_by_user(email, role, org):
                 affected_apps[app].add(email)
     return affected_apps
 
@@ -77,24 +91,11 @@ def fetch_api_json(url):
     return response.json()
 
 
-def apps_accessible_by_user(email, role):
+def apps_accessible_by_user(email, role, org=ORG_NAME_DEFAULT):
     if role == 'admin':
         return ['ALL']
-    users_apps_url = '{}/{}/apps'.format(ORG_USERS_URL, email)
+    users_apps_url = '{}/{}/apps'.format(get_org_member_url(org), email)
     return [app['name'] for app in fetch_api_json(users_apps_url)]
 
 
-# Mozilla defaults
-ORG_NAME = 'mozillacorporation'
-# https://devcenter.heroku.com/articles/platform-api-reference#organization-member
-ORG_USERS_URL = \
-    'https://api.heroku.com/organizations/{}/members'.format(ORG_NAME)
-# https://devcenter.heroku.com/articles/platform-api-reference#clients
-REQUEST_HEADERS = {
-    'Accept': 'application/vnd.heroku+json; version=3',
-    'User-Agent': 'build-stats',
-}
-
 session = requests.session()
-
-# end of code to move
