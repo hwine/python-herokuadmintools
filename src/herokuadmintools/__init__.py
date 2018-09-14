@@ -14,6 +14,8 @@ status_code = 0
 
 # Mozilla defaults
 ORG_NAME_DEFAULT = 'mozillacorporation'
+# https://devcenter.heroku.com/articles/platform-api-reference#organization
+ORG_URL_TEMPLATE = 'https://api.heroku.com/organizations/{}'
 # https://devcenter.heroku.com/articles/platform-api-reference#organization-member
 ORG_USERS_URL_TEMPLATE = \
     'https://api.heroku.com/organizations/{}/members'
@@ -38,6 +40,10 @@ def update_status_code(new_code):
     status_code = max(status_code, new_code)
 
 
+def get_org_url(org=ORG_NAME_DEFAULT):
+    return ORG_URL_TEMPLATE.format(org)
+
+
 def get_org_member_url(org=ORG_NAME_DEFAULT):
     return ORG_USERS_URL_TEMPLATE.format(org)
 
@@ -48,20 +54,32 @@ def verify_access(org=ORG_NAME_DEFAULT):
                      'or `~/_netrc`.\n'
                      'Log in using the Heroku CLI to generate them.')
         update_status_code(1)
-        return
+    try:
+        org_perms = fetch_api_json(get_org_url(org))
+        role = org_perms["role"]
+        if role not in ["admin"]:
+            logger.warn("You only have {} perms for {}".format(role, org))
+    except requests.exceptions.HTTPError:
+        logger.fatal("You don't have access to {}".format(org))
+        update_status_code(3)
+    return
 
 
-def find_users_missing_2fa(org=ORG_NAME_DEFAULT):
-    users_missing_2fa = {}
+def get_users(org=ORG_NAME_DEFAULT):
     try:
         org_users = fetch_api_json(get_org_member_url(org))
-        users_missing_2fa = defaultdict(set)
         for user in org_users:
-            if not user['two_factor_authentication']:
-                users_missing_2fa[user['role']].add(user['email'])
+            yield user
     except Exception:
         logger.critical("Failure communicating with Heroku", exc_info=True)
         update_status_code(3)
+
+
+def find_users_missing_2fa(org=ORG_NAME_DEFAULT):
+    users_missing_2fa = defaultdict(set)
+    for user in get_users():
+        if not user['two_factor_authentication']:
+            users_missing_2fa[user['role']].add(user['email'])
     return users_missing_2fa
 
 

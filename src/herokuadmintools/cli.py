@@ -2,7 +2,7 @@
 cli wrapper of Mozilla specific heroku administrative tasks
 
 Exit Codes:
-    0 - everyone has 2FA enabled
+    0 - everyone okay
     1 - bad arguments, Heroku not queried
     2 - one or more users without 2FA enabled
     3 - Heroku query failure
@@ -16,6 +16,7 @@ from herokuadmintools import (
     find_users_missing_2fa,
     generate_csv,
     get_status_code,
+    get_users,
     ORG_NAME_DEFAULT,
     update_status_code,
     verify_access,
@@ -43,7 +44,17 @@ def output_results(users_missing_2fa, affected_apps, org=ORG_NAME_DEFAULT):
             print('{} ({})'.format(app, ', '.join(sorted(emails))))
 
 
-def generate_email_csv(users_missing_2fa, affected_apps, cc_addr=None):
+def generate_membership_email_csv(users, cc_addr=None):
+    if cc_addr:
+        print('"CC",', end='')
+    print('"{}"'.format("Email Address"))
+    for user in users:
+        if cc_addr:
+            print('"{}",'.format(cc_addr), end='')
+        print('"{}"'.format(user['user']['email']))
+
+
+def generate_2fa_email_csv(users_missing_2fa, affected_apps, cc_addr=None):
     # flip app: users to user: apps
     user_apps = defaultdict(list)
     for app, users in affected_apps.items():
@@ -61,17 +72,21 @@ def generate_email_csv(users_missing_2fa, affected_apps, cc_addr=None):
 def do_task(args):
     org = args.organization
     verify_access(org)
-    users_missing_2fa = find_users_missing_2fa(org)
-    affected_apps = find_affected_apps(users_missing_2fa, org)
-
-    if args.csv:
-        generate_csv(users_missing_2fa, affected_apps)
-    elif args.email:
-        generate_email_csv(users_missing_2fa, affected_apps, args.cc)
+    if args.membership:
+        users_of_interest = list(get_users(org))
+        affected_apps = {}
+        generate_membership_email_csv(users_of_interest, args.cc)
     else:
-        output_results(users_missing_2fa, affected_apps)
+        users_of_interest = find_users_missing_2fa(org)
+        affected_apps = find_affected_apps(users_of_interest, org)
+        update_status_code(0 if not users_of_interest else 2)
 
-    update_status_code(0 if not users_missing_2fa else 2)
+        if args.csv:
+            generate_csv(users_of_interest, affected_apps)
+        elif args.email:
+            generate_2fa_email_csv(users_of_interest, affected_apps, args.cc)
+        else:
+            output_results(users_of_interest, affected_apps)
 
 
 def parse_args(args=None):
@@ -88,9 +103,11 @@ def parse_args(args=None):
                         default=None)
     parser.add_argument('--organization', help='Heroku Organization to query',
                         default=ORG_NAME_DEFAULT)
+    parser.add_argument('--membership', action='store_true',
+                        help="Only output members list")
     args = parser.parse_args(args=args)
     # handle args which imply others
-    if args.cc and not args.email:
+    if args.cc or args.membership:
         args.email = True
     if args.email and args.csv:
         parser.error("Only one of --email and --csv can be specified")
