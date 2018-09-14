@@ -31,4 +31,5 @@ def test_pass_bad_org():
 def test_pass_no_org():
     with pytest.raises(SystemExit) as e_info:
         main("".split())
-    assert e_info.value.code == 2
+    # now passes, as we have a default org
+    assert e_info.value.code == 0
