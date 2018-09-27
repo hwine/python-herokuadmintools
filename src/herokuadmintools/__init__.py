@@ -56,7 +56,7 @@ def verify_access(org=ORG_NAME_DEFAULT):
         update_status_code(1)
     try:
         org_perms = fetch_api_json(get_org_url(org))
-        role = org_perms["role"]
+        role = org_perms.get("role", "public")
         if role not in ["admin"]:
             logger.warn("You only have {} perms for {}".format(role, org))
     except requests.exceptions.HTTPError:
