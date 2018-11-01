@@ -62,6 +62,7 @@ def verify_access(org=ORG_NAME_DEFAULT):
     except requests.exceptions.HTTPError:
         logger.fatal("You don't have access to {}".format(org))
         update_status_code(3)
+        raise SystemExit(get_status_code())
     return
 
 
