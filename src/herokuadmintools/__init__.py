@@ -51,9 +51,11 @@ def get_org_member_url(org=ORG_NAME_DEFAULT):
 def verify_access(org=ORG_NAME_DEFAULT):
     if not get_netrc_auth(get_org_member_url(org)):
         logger.fatal('Heroku API credentials not found in `~/.netrc`'
-                     'or `~/_netrc`.\n'
-                     'Log in using the Heroku CLI to generate them.')
+                     ' or `~/_netrc`.'
+                     ' Log in using the Heroku CLI to generate them,'
+                     ' or decrypt your ~/.netrc.gpg file')
         update_status_code(1)
+        raise SystemExit(get_status_code())
     try:
         org_perms = fetch_api_json(get_org_url(org))
         role = org_perms.get("role", "public")
