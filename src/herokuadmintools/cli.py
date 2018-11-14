@@ -4,18 +4,19 @@ cli wrapper of Mozilla specific heroku administrative tasks
 Exit Codes:
     0 - everyone okay
     1 - bad arguments, Heroku not queried
-    2 - one or more users without 2FA enabled
+    2 - one or more users with improper account setup
     3 - Heroku query failure
 """
+
 import argparse
 from collections import defaultdict
 import csv
 import logging
+import re
 import sys
 
 from herokuadmintools import (
     find_affected_apps,
-    find_users_missing_2fa,
     generate_csv,
     get_status_code,
     get_users,
@@ -23,6 +24,15 @@ from herokuadmintools import (
     update_status_code,
     verify_access,
 )
+
+_epilog = """
+Mozilla defines proper account as the following:
+    - account is federated (i.e. using SSO), or
+    - account is not federated, and
+        - 2FA must be enabled, and
+        - if role is 'member' or 'admin',
+          email must match regex '^heroku-.*@mozilla.com$'
+"""
 
 
 # boilerplate
@@ -77,6 +87,25 @@ def generate_2fa_email_csv(users_missing_2fa, affected_apps, cc_addr=None):
         print('"{}","{}"'.format(user, ",".join(apps)))
 
 
+def find_unsafe_users(org=ORG_NAME_DEFAULT):
+    unsafe_users = defaultdict(set)
+    # Follow the rules described in _epilog
+    pat = re.compile(r'''^heroku-.*@mozilla.com$''', re.RegexFlag.IGNORECASE)
+    ok = False
+    for user in get_users():
+        if user['federated']:
+            ok = True
+        elif user['two_factor_authentication']:
+            if user['role'] in ['member', 'admin']:
+                ok = bool(pat.match(user['email']))
+            else:
+                ok = True
+
+        if not ok:
+            unsafe_users[user['role']].add(user['email'])
+    return unsafe_users
+
+
 def do_task(args):
     org = args.organization
     verify_access(org)
@@ -85,7 +114,7 @@ def do_task(args):
         affected_apps = {}
         generate_membership_email_csv(users_of_interest, args.cc)
     else:
-        users_of_interest = find_users_missing_2fa(org)
+        users_of_interest = find_unsafe_users(org)
         affected_apps = find_affected_apps(users_of_interest, org)
         update_status_code(0 if not users_of_interest else 2)
 
@@ -99,7 +128,8 @@ def do_task(args):
 
 def parse_args(args=None):
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter,
+        epilog=_epilog
     )
     parser.add_argument("--debug", help="log at DEBUG level", action="store_true")
     parser.add_argument("--csv", action="store_true", help="output as csv file")
